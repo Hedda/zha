@@ -54,6 +54,7 @@ from zha.application.platforms.light.const import (
     DEFAULT_MIN_TRANSITION_MANUFACTURERS,
     DEFAULT_ON_OFF_TRANSITION,
     EFFECT_COLORLOOP,
+    EFFECT_NONE,
     FLASH_EFFECTS,
     SUPPORT_GROUP_LIGHT,
     ColorMode,
@@ -126,7 +127,7 @@ class BaseLight(BaseEntity, ABC):
         self._off_with_transition: bool = False
         self._off_brightness: int | None = None
         self._effect_list: list[str] | None = None
-        self._effect: str | None = None
+        self._effect: str = EFFECT_NONE
         self._supported_color_modes: set[ColorMode] = set()
         self._external_supported_color_modes: set[ColorMode] = set()
         self._zha_config_transition: int = self._DEFAULT_MIN_TRANSITION_TIME
@@ -184,7 +185,7 @@ class BaseLight(BaseEntity, ABC):
         return self._effect_list
 
     @property
-    def effect(self) -> str | None:
+    def effect(self) -> str:
         """Return the current effect."""
         return self._effect
 
@@ -480,7 +481,7 @@ class BaseLight(BaseEntity, ABC):
                 start_hue=0,
             )
             t_log["color_loop_set"] = result
-            self._effect = None
+            self._effect = EFFECT_NONE
 
         if flash is not None:
             result = await self._identify_cluster_handler.trigger_effect(
@@ -712,7 +713,7 @@ class Light(PlatformEntity, BaseLight):
             self._min_mireds: int = self._color_cluster_handler.min_mireds
             self._max_mireds: int = self._color_cluster_handler.max_mireds
         self._cancel_refresh_handle: Callable | None = None
-        effect_list = []
+        effect_list = [EFFECT_NONE]
 
         light_options = device.gateway.config.config.light_options
         self._zha_config_always_prefer_xy_color_mode = (
@@ -986,7 +987,7 @@ class Light(PlatformEntity, BaseLight):
                 if color_loop_active == 1:
                     self._effect = EFFECT_COLORLOOP
                 else:
-                    self._effect = None
+                    self._effect = EFFECT_NONE
         self.maybe_emit_state_changed_event()
 
     def _assume_group_state(self, update_params) -> None:
@@ -1044,8 +1045,8 @@ class Light(PlatformEntity, BaseLight):
             if hs_color is not None and ColorMode.HS in supported_modes:
                 self._hs_color = hs_color
             # the effect is always deactivated in async_turn_on if not provided
-            if effect is None:
-                self._effect = None
+            if effect is None or effect == EFFECT_NONE:
+                self._effect = EFFECT_NONE
             elif self._effect_list and effect in self._effect_list:
                 self._effect = effect
 
@@ -1062,7 +1063,7 @@ class Light(PlatformEntity, BaseLight):
         xy_color: tuple[float, float] | None,
         hs_color: tuple[float, float] | None,
         color_mode: ColorMode | None,
-        effect: str | None,
+        effect: str,
     ) -> None:
         """Restore extra state attributes that are stored outside of the ZCL cache."""
         if state is not None:
@@ -1290,7 +1291,7 @@ class LightGroup(GroupEntity, BaseLight):
             # Merge all effects from all effect_lists with a union merge.
             self._effect_list = list(set().union(*all_effect_lists))
 
-        self._effect = None
+        self._effect = EFFECT_NONE
         all_effects = list(find_state_attributes(on_states, ATTR_EFFECT))
         if all_effects:
             # Report the most common effect.
@@ -1397,7 +1398,7 @@ class LightGroup(GroupEntity, BaseLight):
         xy_color: tuple[float, float] | None,
         hs_color: tuple[float, float] | None,
         color_mode: ColorMode | None,
-        effect: str | None,
+        effect: str,
     ) -> None:
         """Restore extra state attributes."""
         # Group state is calculated from the members,
